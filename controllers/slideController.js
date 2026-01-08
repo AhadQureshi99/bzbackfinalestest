@@ -1,0 +1,234 @@
+const handler = require("express-async-handler");
+const slideModel = require("../models/slideModel");
+const cloudinary = require("cloudinary").v2;
+
+const validateCloudinaryConfig = () => {
+  const requiredEnvVars = {
+    cloud_name: process.env.Cloud_Name,
+    api_key: process.env.API_Key,
+    api_secret: process.env.API_Secret,
+  };
+
+  console.log("Cloudinary config:", {
+    cloud_name: process.env.Cloud_Name,
+    api_key: !!process.env.API_Key,
+    api_secret: !!process.env.API_Secret,
+  });
+
+  for (const [key, value] of Object.entries(requiredEnvVars)) {
+    if (!value) {
+      throw new Error(`Missing Cloudinary environment variable: ${key}`);
+    }
+  }
+
+  cloudinary.config({
+    cloud_name: process.env.Cloud_Name,
+    api_key: process.env.API_Key,
+    api_secret: process.env.API_Secret,
+  });
+};
+
+const createSlide = handler(async (req, res) => {
+  console.log("createSlide - req.body:", req.body);
+  console.log(
+    "createSlide - req.files:",
+    req.files
+      ? Object.keys(req.files).map((key) => ({
+          fieldname: req.files[key].fieldname,
+          originalname: req.files[key].originalname,
+          mimetype: req.files[key].mimetype,
+          size: req.files[key].size,
+        }))
+      : "No files received"
+  );
+
+  const {
+    title,
+    subtitle,
+    buttonText,
+    link,
+    bgColor,
+    titleColor,
+    subtitleColor,
+    buttonBgColor,
+    buttonTextColor,
+    size,
+  } = req.body;
+
+  if (!req.files?.image) {
+    console.error("Missing required field:", { image: !!req.files?.image });
+    res.status(400);
+    throw new Error("Please provide an image");
+  }
+
+  try {
+    validateCloudinaryConfig();
+
+    const imageResult = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder: "slides" },
+        (error, result) => {
+          if (error) {
+            console.error("Cloudinary upload error (image):", error.message);
+            reject(new Error(`Cloudinary error: ${error.message}`));
+          } else {
+            resolve(result);
+          }
+        }
+      );
+      stream.end(req.files.image[0].buffer);
+    });
+
+    const slide = await slideModel.create({
+      title: title || undefined,
+      subtitle: subtitle || undefined,
+      buttonText: buttonText || undefined,
+      image: imageResult.secure_url,
+      link: link || "/products",
+      bgColor: bgColor || "#ffffff",
+      titleColor: titleColor || "#000000",
+      subtitleColor: subtitleColor || "#000000",
+      buttonBgColor: buttonBgColor || "#ffffff",
+      buttonTextColor: buttonTextColor || "#000000",
+      size: size || "medium",
+    });
+
+    res.status(201).json({
+      _id: slide._id,
+      title: slide.title,
+      subtitle: slide.subtitle,
+      buttonText: slide.buttonText,
+      image: slide.image,
+      link: slide.link,
+      bgColor: slide.bgColor,
+      titleColor: slide.titleColor,
+      subtitleColor: slide.subtitleColor,
+      buttonBgColor: slide.buttonBgColor,
+      buttonTextColor: slide.buttonTextColor,
+      size: slide.size,
+      createdAt: slide.createdAt,
+    });
+  } catch (error) {
+    console.error("Error in createSlide:", error.message);
+    res.status(500);
+    throw new Error(`Failed to create slide: ${error.message}`);
+  }
+});
+
+const getSlides = handler(async (req, res) => {
+  const slides = await slideModel.find().sort({ createdAt: -1 });
+  res.status(200).json(slides);
+});
+
+const getSlideById = handler(async (req, res) => {
+  const slide = await slideModel.findById(req.params.id);
+
+  if (!slide) {
+    res.status(400);
+    throw new Error("Slide not found");
+  }
+
+  res.status(200).json(slide);
+});
+
+const updateSlide = handler(async (req, res) => {
+  console.log("updateSlide - req.body:", req.body);
+  console.log(
+    "updateSlide - req.files:",
+    req.files
+      ? Object.keys(req.files).map((key) => ({
+          fieldname: req.files[key].fieldname,
+          originalname: req.files[key].originalname,
+          mimetype: req.files[key].mimetype,
+          size: req.files[key].size,
+        }))
+      : "No files received"
+  );
+
+  const slide = await slideModel.findById(req.params.id);
+
+  if (!slide) {
+    res.status(400);
+    throw new Error("Slide not found");
+  }
+
+  const {
+    title,
+    subtitle,
+    buttonText,
+    link,
+    bgColor,
+    titleColor,
+    subtitleColor,
+    buttonBgColor,
+    buttonTextColor,
+    size,
+  } = req.body;
+
+  try {
+    validateCloudinaryConfig();
+
+    let imageUrl = slide.image;
+    if (req.files?.image) {
+      const imageResult = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: "slides" },
+          (error, result) => {
+            if (error) {
+              console.error("Cloudinary upload error (image):", error.message);
+              reject(new Error(`Cloudinary error: ${error.message}`));
+            } else {
+              resolve(result);
+            }
+          }
+        );
+        stream.end(req.files.image[0].buffer);
+      });
+      imageUrl = imageResult.secure_url;
+    }
+
+    const updatedSlide = await slideModel.findByIdAndUpdate(
+      req.params.id,
+      {
+        title: title || slide.title,
+        subtitle: subtitle || slide.subtitle,
+        buttonText: buttonText || slide.buttonText,
+        image: imageUrl,
+        link: link || slide.link,
+        bgColor: bgColor || slide.bgColor,
+        titleColor: titleColor || slide.titleColor,
+        subtitleColor: subtitleColor || slide.subtitleColor,
+        buttonBgColor: buttonBgColor || slide.buttonBgColor,
+        buttonTextColor: buttonTextColor || slide.buttonTextColor,
+        size: size || slide.size,
+      },
+      { new: true }
+    );
+
+    res.status(200).json(updatedSlide);
+  } catch (error) {
+    console.error("Error in updateSlide:", error.message);
+    res.status(500);
+    throw new Error(`Failed to update slide: ${error.message}`);
+  }
+});
+
+const deleteSlide = handler(async (req, res) => {
+  const slide = await slideModel.findById(req.params.id);
+
+  if (!slide) {
+    res.status(400);
+    throw new Error("Slide not found");
+  }
+
+  await slideModel.findByIdAndDelete(req.params.id);
+  res.status(200).json({ message: "Slide deleted successfully" });
+});
+
+module.exports = {
+  createSlide,
+  getSlides,
+  getSlideById,
+  updateSlide,
+  deleteSlide,
+};
