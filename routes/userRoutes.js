@@ -10,6 +10,8 @@ const {
   forgotPassword,
   resetPassword,
   updateProfileImage,
+  deleteUser,
+  getUserById,
 } = require("../controllers/userController");
 const authHandler = require("../middlewares/authMiddleware");
 
@@ -20,6 +22,8 @@ userRouter.post("/login-user", loginUser);
 userRouter.post("/verify-otp", authHandler, verifyOTP);
 userRouter.get("/me", authHandler, getCurrentUser);
 userRouter.get("/all-users", getAllUsers);
+userRouter.get("/user/:id", getUserById);
+userRouter.delete("/user/:id", deleteUser);
 userRouter.post("/subscribe", subscribeUser);
 userRouter.post("/validate-discount", validateDiscountCode);
 userRouter.post("/forgot-password", forgotPassword);

@@ -36,6 +36,18 @@ const productSchema = mongoose.Schema(
         },
       },
     ],
+    colors: [
+      {
+        name: {
+          type: String,
+          required: true,
+        },
+        hex: {
+          type: String,
+          required: true,
+        },
+      },
+    ],
     warranty: {
       type: String,
       required: false,
@@ -51,9 +63,9 @@ const productSchema = mongoose.Schema(
       default: [],
     },
     category: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Category",
+      type: String,
       required: true,
+      enum: ["mens-clothing", "watches", "shoes", "mens-care", "pods-vape"],
     },
     subcategories: [
       {
@@ -109,7 +121,7 @@ const productSchema = mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 module.exports = mongoose.model("Product", productSchema);

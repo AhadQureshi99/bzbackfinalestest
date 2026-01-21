@@ -81,7 +81,7 @@ const createOrder = asyncHandler(async (req, res) => {
     console.log("createOrder - Invalid phone format:", phone_number);
     res.status(400);
     throw new Error(
-      "Invalid phone number. Provide 11-digit local number or +92XXXXXXXXXX"
+      "Invalid phone number. Provide 11-digit local number or +92XXXXXXXXXX",
     );
   }
 
@@ -93,7 +93,7 @@ const createOrder = asyncHandler(async (req, res) => {
       console.log("createOrder - Invalid product data:", item);
       res.status(400);
       throw new Error(
-        "Each product must have product_id, quantity, and selected_image"
+        "Each product must have product_id, quantity, and selected_image",
       );
     }
     const product = await Product.findById(item.product_id);
@@ -106,15 +106,15 @@ const createOrder = asyncHandler(async (req, res) => {
       if (!item.selected_size) {
         console.log(
           "createOrder - Missing selected_size for product with sizes:",
-          item.product_id
+          item.product_id,
         );
         res.status(400);
         throw new Error(
-          `Product ${product.product_name} requires a size selection`
+          `Product ${product.product_name} requires a size selection`,
         );
       }
       const sizeEntry = product.sizes.find(
-        (s) => s.size === item.selected_size
+        (s) => s.size === item.selected_size,
       );
       if (!sizeEntry || sizeEntry.stock < item.quantity) {
         console.log("createOrder - Insufficient stock for size:", {
@@ -127,7 +127,7 @@ const createOrder = asyncHandler(async (req, res) => {
         throw new Error(
           `Product ${product.product_name} size ${
             item.selected_size
-          } has only ${sizeEntry ? sizeEntry.stock : 0} units in stock`
+          } has only ${sizeEntry ? sizeEntry.stock : 0} units in stock`,
         );
       }
     } else if (product.product_stock < item.quantity) {
@@ -138,7 +138,7 @@ const createOrder = asyncHandler(async (req, res) => {
       });
       res.status(400);
       throw new Error(
-        `Product ${product.product_name} has only ${product.product_stock} units in stock`
+        `Product ${product.product_name} has only ${product.product_stock} units in stock`,
       );
     }
     shipping_total += product.shipping * item.quantity;
@@ -193,6 +193,7 @@ const createOrder = asyncHandler(async (req, res) => {
       quantity: item.quantity,
       selected_image: item.selected_image,
       selected_size: item.selected_size || null,
+      selected_color: item.selected_color || null,
     })),
     total_amount: final_total,
     original_amount: original_total,
@@ -217,7 +218,7 @@ const createOrder = asyncHandler(async (req, res) => {
         ? { arrayFilters: [{ "elem.size": item.selected_size }] }
         : {};
       await Product.findByIdAndUpdate(item.product_id, update, options);
-    })
+    }),
   );
 
   // Clear cart
@@ -242,7 +243,7 @@ const createOrder = asyncHandler(async (req, res) => {
         products: products.map((p) => {
           // find canonical product object from validatedProducts when available
           const validated = validatedProducts.find(
-            (vp) => String(vp.product._id) === String(p.product_id)
+            (vp) => String(vp.product._id) === String(p.product_id),
           );
           const productObj = validated?.product || null;
           let finalImage = p.selected_image;
@@ -311,7 +312,7 @@ const createOrder = asyncHandler(async (req, res) => {
             await Activity.findByIdAndUpdate(
               activityDoc._id,
               { $set: { "meta.location": loc } },
-              { new: true }
+              { new: true },
             );
           }
         } catch (e) {
@@ -353,14 +354,14 @@ const createOrder = asyncHandler(async (req, res) => {
               }</td>
               <td style="padding: 12px; text-align: center;">${
                 products.find(
-                  (p) => String(p.product_id) === String(vp.product._id)
+                  (p) => String(p.product_id) === String(vp.product._id),
                 )?.quantity || 0
               }</td>
               <td style="padding: 12px; text-align: right;">Rs. ${(
                 vp.product.product_discounted_price || 0
               ).toFixed(2)}</td>
             </tr>
-          `
+          `,
         )
         .join("");
 
@@ -423,7 +424,7 @@ const createOrder = asyncHandler(async (req, res) => {
         }
         <p><strong>Shipping:</strong> Rs. ${shipping_total.toFixed(2)}</p>
         <p style="font-size: 16px; color: #ff8c00;"><strong>Total Amount:</strong> Rs. ${final_total.toFixed(
-          2
+          2,
         )}</p>
       </div>
 
@@ -453,7 +454,7 @@ const createOrder = asyncHandler(async (req, res) => {
           } else {
             console.log("Order confirmation email sent to admin:", adminEmail);
           }
-        }
+        },
       );
 
       // Send confirmation email to customer
@@ -488,8 +489,8 @@ const createOrder = asyncHandler(async (req, res) => {
         <p><strong>Order ID:</strong> ${order._id}</p>
         <p><strong>Order Date:</strong> ${new Date().toLocaleString()}</p>
         <p><strong>Delivery Address:</strong> ${shipping_address}, ${
-        shippingCity || ""
-      }</p>
+          shippingCity || ""
+        }</p>
       </div>
 
       <h3>Order Summary</h3>
@@ -516,10 +517,10 @@ const createOrder = asyncHandler(async (req, res) => {
             : ""
         }
         <p><strong>Shipping Charge:</strong> Rs. ${shipping_total.toFixed(
-          2
+          2,
         )}</p>
         <p style="font-size: 16px; color: #4caf50;"><strong>Total Payable:</strong> Rs. ${final_total.toFixed(
-          2
+          2,
         )}</p>
       </div>
 
@@ -550,15 +551,15 @@ const createOrder = asyncHandler(async (req, res) => {
           } else {
             console.log(
               "Order confirmation email sent to customer:",
-              order_email
+              order_email,
             );
           }
-        }
+        },
       );
     } catch (emailErr) {
       console.warn(
         "Failed to send order notification email:",
-        emailErr?.message || emailErr
+        emailErr?.message || emailErr,
       );
     }
   })();
@@ -593,7 +594,7 @@ const getMyOrders = asyncHandler(async (req, res) => {
     const orders = await Order.find(query)
       .populate({
         path: "user_id",
-        select: "username email",
+        select: "username email profileImage",
         match: { _id: { $exists: true } },
       })
       .populate("products.product_id")
@@ -619,7 +620,7 @@ const getOrders = asyncHandler(async (req, res) => {
     const orders = await Order.find()
       .populate({
         path: "user_id",
-        select: "username email",
+        select: "username email profileImage",
         match: { _id: { $exists: true } },
       })
       .populate("products.product_id")
@@ -650,7 +651,9 @@ const getOrderById = asyncHandler(async (req, res) => {
 
 const updateOrderStatus = asyncHandler(async (req, res) => {
   const { status } = req.body;
-  const order = await Order.findById(req.params.id);
+  const order = await Order.findById(req.params.id).populate(
+    "products.product_id",
+  );
   if (!order) {
     res.status(404);
     throw new Error("Order not found");
@@ -658,14 +661,52 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
 
   if (
     !["pending", "processing", "shipped", "delivered", "cancelled"].includes(
-      status
+      status,
     )
   ) {
     res.status(400);
     throw new Error("Invalid status");
   }
 
+  const previousStatus = order.status;
+
+  // Restore stock if order is being cancelled (and wasn't already cancelled)
+  if (status === "cancelled" && previousStatus !== "cancelled") {
+    await Promise.all(
+      order.products.map(async (item) => {
+        const update = item.selected_size
+          ? { $inc: { "sizes.$[elem].stock": item.quantity } }
+          : { $inc: { product_stock: item.quantity } };
+        const options = item.selected_size
+          ? { arrayFilters: [{ "elem.size": item.selected_size }] }
+          : {};
+        await Product.findByIdAndUpdate(item.product_id, update, options);
+      }),
+    );
+  }
+
+  // If order was previously cancelled and is now being uncancelled, reduce stock again
+  if (previousStatus === "cancelled" && status !== "cancelled") {
+    await Promise.all(
+      order.products.map(async (item) => {
+        const update = item.selected_size
+          ? { $inc: { "sizes.$[elem].stock": -item.quantity } }
+          : { $inc: { product_stock: -item.quantity } };
+        const options = item.selected_size
+          ? { arrayFilters: [{ "elem.size": item.selected_size }] }
+          : {};
+        await Product.findByIdAndUpdate(item.product_id, update, options);
+      }),
+    );
+  }
+
   order.status = status;
+
+  // Record delivery timestamp when order is delivered
+  if (status === "delivered" && !order.delivered_at) {
+    order.delivered_at = new Date();
+  }
+
   await order.save();
   res.status(200).json(order);
 });
@@ -686,7 +727,7 @@ const deleteOrder = asyncHandler(async (req, res) => {
         ? { arrayFilters: [{ "elem.size": item.selected_size }] }
         : {};
       await Product.findByIdAndUpdate(item.product_id, update, options);
-    })
+    }),
   );
 
   await Order.findByIdAndDelete(req.params.id);

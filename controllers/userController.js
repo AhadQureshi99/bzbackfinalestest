@@ -2,6 +2,7 @@ const handler = require("express-async-handler");
 const userModel = require("../models/userModel");
 const tempUserModel = require("../models/tempUserModel");
 const discountCodeModel = require("../models/discountCodeModel");
+const orderModel = require("../models/orderModel");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
@@ -389,7 +390,7 @@ const registerUser = handler(async (req, res) => {
 
   console.log(
     "userController - registerUser: Success, tempUser:",
-    tempUser._id
+    tempUser._id,
   );
   res.status(201).send({
     _id: tempUser._id,
@@ -405,7 +406,7 @@ const verifyOTP = handler(async (req, res) => {
 
   console.log(
     "userController - verifyOTP: Verifying OTP for user_id:",
-    user_id
+    user_id,
   );
 
   if (!otp) {
@@ -467,6 +468,7 @@ const loginUser = handler(async (req, res) => {
       username: findUser.username,
       email: findUser.email,
       role: findUser.role,
+      profileImage: findUser.profileImage,
       token: generateToken(findUser._id),
     });
   } else {
@@ -543,17 +545,17 @@ const updateProfileImage = handler(async (req, res) => {
   user.profileImage = imageUrl;
   await user.save();
 
-  res
-    .status(200)
-    .json({
-      message: "Profile image updated",
-      profileImage: user.profileImage,
-    });
+  res.status(200).json({
+    message: "Profile image updated",
+    profileImage: user.profileImage,
+  });
 });
 
 const getAllUsers = handler(async (req, res) => {
   console.log("userController - getAllUsers: Fetching all users");
-  const users = await userModel.find({}, "_id username email role").lean();
+  const users = await userModel
+    .find({}, "_id username email role profileImage createdAt")
+    .lean();
   if (!users || users.length === 0) {
     res.status(404);
     throw new Error("No users found");
@@ -631,6 +633,41 @@ const validateDiscountCode = handler(async (req, res) => {
   res.status(200).json({ isValid: true, message: "Valid discount code" });
 });
 
+// Delete User
+const deleteUser = handler(async (req, res) => {
+  const { id } = req.params;
+
+  const user = await userModel.findById(id);
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  // Delete the user
+  await userModel.findByIdAndDelete(id);
+
+  res.status(200).json({ message: "User deleted successfully" });
+});
+
+// Get User by ID
+const getUserById = handler(async (req, res) => {
+  const { id } = req.params;
+
+  const user = await userModel.findById(id).select("-password");
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
+  }
+
+  // Get user's order count
+  const orderCount = await orderModel.countDocuments({ user_id: id });
+
+  res.status(200).json({
+    ...user.toObject(),
+    orderCount,
+  });
+});
+
 const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: "15d",
@@ -648,4 +685,6 @@ module.exports = {
   forgotPassword,
   resetPassword,
   updateProfileImage,
+  deleteUser,
+  getUserById,
 };

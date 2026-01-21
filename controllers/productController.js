@@ -10,7 +10,8 @@ const { getClientIp } = require("../utils/getClientIp");
 const wishlistModel = require("../models/wishlistModel");
 
 const addToCart = handler(async (req, res) => {
-  const { product_id, selected_image, guestId, selected_size } = req.body;
+  const { product_id, selected_image, guestId, selected_size, selected_color } =
+    req.body;
   const user_id = req.user?.id; // Use id to match generateToken
 
   console.log("addToCart - Called with:", {
@@ -19,6 +20,7 @@ const addToCart = handler(async (req, res) => {
     product_id,
     selected_image,
     selected_size,
+    selected_color,
   });
 
   // Validate inputs
@@ -68,7 +70,7 @@ const addToCart = handler(async (req, res) => {
       if (!selected_size) {
         console.log(
           "addToCart - Missing selected_size for sized product:",
-          product_id
+          product_id,
         );
         res.status(400);
         throw new Error("Size is required for this product");
@@ -106,12 +108,14 @@ const addToCart = handler(async (req, res) => {
           product_id,
           selected_image,
           selected_size: selected_size || null,
+          selected_color: selected_color || null,
         }
       : {
           guest_id: guestId,
           product_id,
           selected_image,
           selected_size: selected_size || null,
+          selected_color: selected_color || null,
         };
 
     console.log("addToCart - Query for existing cart item:", query);
@@ -125,7 +129,7 @@ const addToCart = handler(async (req, res) => {
           console.log("addToCart - Exceeds stock for size:", selected_size);
           res.status(400);
           throw new Error(
-            `Cannot add more: Size ${selected_size} stock limit reached`
+            `Cannot add more: Size ${selected_size} stock limit reached`,
           );
         }
       } else {
@@ -145,6 +149,7 @@ const addToCart = handler(async (req, res) => {
         product_id,
         selected_image,
         selected_size: selected_size || null,
+        selected_color: selected_color || null,
         quantity: 1,
       });
       console.log("addToCart - Created new cart item:", cart._id);
@@ -177,7 +182,7 @@ const addToCart = handler(async (req, res) => {
     // compute cart totals and include product info in server-side analytics
     const totalItems = updatedCarts.reduce(
       (t, it) => t + (it.quantity || 0),
-      0
+      0,
     );
     try {
       // Canonical product fields from DB (use these for analytics to avoid stale/mismatched client payloads)
@@ -213,7 +218,7 @@ const addToCart = handler(async (req, res) => {
           server_logged: true,
           ip: getClientIp(req),
         },
-        req.body.meta || {}
+        req.body.meta || {},
       );
 
       // Attach parsed UA info (device model / os) when available
@@ -302,7 +307,7 @@ const addToCart = handler(async (req, res) => {
               await Activity.findByIdAndUpdate(
                 activityDoc._id,
                 { $set: { "meta.location": loc } },
-                { new: true }
+                { new: true },
               );
             }
           } catch (e) {
@@ -380,7 +385,8 @@ const getMyCart = handler(async (req, res) => {
 });
 
 const removeFromCart = handler(async (req, res) => {
-  const { product_id, selected_image, guestId, selected_size } = req.body;
+  const { product_id, selected_image, guestId, selected_size, selected_color } =
+    req.body;
   const user_id = req.user?.id;
 
   console.log("removeFromCart - Called with:", {
@@ -389,6 +395,7 @@ const removeFromCart = handler(async (req, res) => {
     product_id,
     selected_image,
     selected_size,
+    selected_color,
   });
 
   if (!product_id || !selected_image) {
@@ -431,12 +438,14 @@ const removeFromCart = handler(async (req, res) => {
           product_id,
           selected_image,
           selected_size: selected_size || null,
+          selected_color: selected_color || null,
         }
       : {
           guest_id: guestId,
           product_id,
           selected_image,
           selected_size: selected_size || null,
+          selected_color: selected_color || null,
         };
     let cart = await cartModel.findOne(query);
 
@@ -451,7 +460,7 @@ const removeFromCart = handler(async (req, res) => {
       await cartModel.deleteOne({ _id: cart._id });
       console.log(
         "removeFromCart - removeAll requested, deleted cart item:",
-        cart._id
+        cart._id,
       );
     } else if (cart.quantity > 1) {
       cart.quantity -= 1;
@@ -485,18 +494,18 @@ const removeFromCart = handler(async (req, res) => {
     });
     console.log(
       "removeFromCart - Returning updated cart:",
-      updatedCarts.length
+      updatedCarts.length,
     );
     res.status(200).json(updatedCarts);
   } catch (err) {
     console.error("removeFromCart - Error:", err?.message || err);
     console.error(
       "removeFromCart - request body:",
-      JSON.stringify(req.body).slice(0, 2000)
+      JSON.stringify(req.body).slice(0, 2000),
     );
     console.error(
       "removeFromCart - headers:",
-      JSON.stringify(req.headers).slice(0, 2000)
+      JSON.stringify(req.headers).slice(0, 2000),
     );
     res.status(500);
     throw err; // rethrow to include stack via error middleware
@@ -547,6 +556,7 @@ const createProduct = handler(async (req, res) => {
     product_discounted_price,
     product_stock,
     sizes,
+    colors,
     warranty,
     product_images,
     category,
@@ -597,29 +607,24 @@ const createProduct = handler(async (req, res) => {
       console.log("createProduct - Product code already exists:", product_code);
       res.status(409);
       throw new Error(
-        `Product code "${product_code}" already exists. Please use a unique product code.`
+        `Product code "${product_code}" already exists. Please use a unique product code.`,
       );
     }
 
-    const categoryExists = await Category.findById(category);
-    if (!categoryExists || categoryExists.parent_category) {
+    // Validate category is one of the allowed values
+    const validCategories = [
+      "mens-clothing",
+      "watches",
+      "shoes",
+      "mens-care",
+      "pods-vape",
+    ];
+    if (!validCategories.includes(category)) {
       console.log("createProduct - Invalid category:", category);
       res.status(400);
-      throw new Error("Invalid category ID or category is a subcategory");
-    }
-
-    if (subcategories && subcategories.length > 0) {
-      const subcats = await Category.find({
-        _id: { $in: subcategories },
-        parent_category: category,
-      });
-      if (subcats.length !== subcategories.length) {
-        console.log("createProduct - Invalid subcategories:", subcategories);
-        res.status(400);
-        throw new Error(
-          "Invalid subcategories or they do not belong to the specified category"
-        );
-      }
+      throw new Error(
+        "Invalid category. Must be one of: " + validCategories.join(", "),
+      );
     }
 
     const basePrice = Number(product_base_price);
@@ -665,7 +670,7 @@ const createProduct = handler(async (req, res) => {
           console.log("createProduct - Invalid size or stock:", size);
           res.status(400);
           throw new Error(
-            "Size value is required and stock must be a non-negative number."
+            "Size value is required and stock must be a non-negative number.",
           );
         }
       }
@@ -681,7 +686,7 @@ const createProduct = handler(async (req, res) => {
       console.log("createProduct - Invalid bg_color:", bg_color);
       res.status(400);
       throw new Error(
-        "Invalid background color format. Use a hex code (e.g., #FFFFFF)"
+        "Invalid background color format. Use a hex code (e.g., #FFFFFF)",
       );
     }
 
@@ -692,6 +697,7 @@ const createProduct = handler(async (req, res) => {
       product_discounted_price: discountedPrice,
       product_stock: stock,
       sizes: sizes || [],
+      colors: colors || [],
       warranty: warranty || "",
       product_images: Array.isArray(product_images) ? product_images : [],
       category,
@@ -730,11 +736,7 @@ const createProduct = handler(async (req, res) => {
 
 const getProducts = handler(async (req, res) => {
   try {
-    const products = await productModel
-      .find()
-      .populate("category")
-      .populate("subcategories")
-      .populate("reviews");
+    const products = await productModel.find().populate("reviews");
     console.log("getProducts - Found products:", products.length);
     // Disable caching to ensure fresh product data
     res.set("Cache-Control", "no-cache, no-store, must-revalidate");
@@ -754,8 +756,6 @@ const getProductById = handler(async (req, res) => {
   try {
     const product = await productModel
       .findById(req.params.id)
-      .populate("category")
-      .populate("subcategories")
       .populate("reviews");
     if (!product) {
       console.log("getProductById - Product not found:", req.params.id);
@@ -763,11 +763,58 @@ const getProductById = handler(async (req, res) => {
       throw new Error("Product not found");
     }
     console.log("getProductById - Found product:", product._id);
-    // Add caching headers for better performance
-    res.set("Cache-Control", "public, max-age=3600"); // Cache for 1 hour
+    // Disable caching to ensure fresh product data
+    res.set("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
     res.status(200).json(product);
   } catch (err) {
     console.error("getProductById - Error:", err.message);
+    res.status(err.status || 500);
+    throw new Error(err.message || "Failed to fetch product");
+  }
+});
+
+// Helper function to create URL-friendly slug from product name
+const createSlug = (name) => {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+};
+
+const getProductBySlug = handler(async (req, res) => {
+  const slug = req.params.slug;
+  console.log("getProductBySlug - Request slug:", slug);
+
+  try {
+    // First try to find by exact product_name match with slug conversion
+    const products = await productModel.find().populate("reviews");
+
+    const product = products.find((p) => {
+      const productSlug = createSlug(p.product_name);
+      return productSlug === slug;
+    });
+
+    if (!product) {
+      console.log("getProductBySlug - Product not found for slug:", slug);
+      res.status(404);
+      throw new Error("Product not found");
+    }
+
+    console.log(
+      "getProductBySlug - Found product:",
+      product._id,
+      "Colors:",
+      JSON.stringify(product.colors),
+    );
+    // Disable caching to ensure fresh product data
+    res.set("Cache-Control", "no-cache, no-store, must-revalidate");
+    res.set("Pragma", "no-cache");
+    res.set("Expires", "0");
+    res.status(200).json(product);
+  } catch (err) {
+    console.error("getProductBySlug - Error:", err.message);
     res.status(err.status || 500);
     throw new Error(err.message || "Failed to fetch product");
   }
@@ -778,26 +825,28 @@ const getProductsByCategory = handler(async (req, res) => {
   console.log("getProductsByCategory - Category ID:", categoryId);
 
   try {
-    // Validate categoryId format early to avoid Mongoose cast errors
-    if (!mongoose.Types.ObjectId.isValid(categoryId)) {
-      console.warn(
-        "getProductsByCategory - Invalid categoryId format:",
-        categoryId
-      );
+    // Validate category is one of the allowed values
+    const validCategories = [
+      "mens-clothing",
+      "watches",
+      "shoes",
+      "mens-care",
+      "pods-vape",
+    ];
+    if (!validCategories.includes(categoryId)) {
+      console.warn("getProductsByCategory - Invalid category:", categoryId);
       res.status(400);
-      throw new Error("Invalid category ID format");
+      throw new Error(
+        "Invalid category. Must be one of: " + validCategories.join(", "),
+      );
     }
     const products = await productModel
-      .find({
-        $or: [{ category: categoryId }, { subcategories: categoryId }],
-      })
-      .populate("category")
-      .populate("subcategories")
+      .find({ category: categoryId })
       .populate("reviews");
     if (!products || products.length === 0) {
       console.log(
         "getProductsByCategory - No products found for category:",
-        categoryId
+        categoryId,
       );
       // Return empty array so frontend can render an empty state instead of
       // receiving a 500. This is not an internal server error, it's a valid
@@ -844,6 +893,7 @@ const updateProduct = handler(async (req, res) => {
       product_discounted_price,
       product_stock,
       sizes,
+      colors,
       warranty,
       product_images,
       category,
@@ -860,24 +910,18 @@ const updateProduct = handler(async (req, res) => {
     } = req.body;
 
     if (category) {
-      const categoryExists = await Category.findById(category);
-      if (!categoryExists || categoryExists.parent_category) {
+      const validCategories = [
+        "mens-clothing",
+        "watches",
+        "shoes",
+        "mens-care",
+        "pods-vape",
+      ];
+      if (!validCategories.includes(category)) {
         console.log("updateProduct - Invalid category:", category);
         res.status(400);
-        throw new Error("Invalid category ID or category is a subcategory");
-      }
-    }
-
-    if (subcategories && subcategories.length > 0) {
-      const subcats = await Category.find({
-        _id: { $in: subcategories },
-        parent_category: category || product.category,
-      });
-      if (subcats.length !== subcategories.length) {
-        console.log("updateProduct - Invalid subcategories:", subcategories);
-        res.status(400);
         throw new Error(
-          "Invalid subcategories or they do not belong to the specified category"
+          "Invalid category. Must be one of: " + validCategories.join(", "),
         );
       }
     }
@@ -944,7 +988,7 @@ const updateProduct = handler(async (req, res) => {
           console.log("updateProduct - Invalid size or stock:", size);
           res.status(400);
           throw new Error(
-            "Size value is required and stock must be a non-negative number."
+            "Size value is required and stock must be a non-negative number.",
           );
         }
       }
@@ -963,7 +1007,7 @@ const updateProduct = handler(async (req, res) => {
       console.log("updateProduct - Invalid bg_color:", bg_color);
       res.status(400);
       throw new Error(
-        "Invalid background color format. Use a hex code (e.g., #FFFFFF)"
+        "Invalid background color format. Use a hex code (e.g., #FFFFFF)",
       );
     }
 
@@ -978,6 +1022,7 @@ const updateProduct = handler(async (req, res) => {
           product_discounted_price: discountedPrice,
           product_stock: stock,
           sizes: sizes || product.sizes,
+          colors: colors || product.colors,
           warranty: warranty || product.warranty,
           product_images: product_images || product.product_images,
           category: category || product.category,
@@ -999,7 +1044,7 @@ const updateProduct = handler(async (req, res) => {
           highlights:
             highlights !== undefined ? highlights : product.highlights,
         },
-        { new: true }
+        { new: true },
       )
       .populate("category")
       .populate("subcategories")
@@ -1143,7 +1188,7 @@ const getReviews = handler(async (req, res) => {
       .find({ product_id })
       .populate("user_id", "username");
     console.log(
-      `getReviews - Found ${reviews.length} reviews for product_id: ${product_id}`
+      `getReviews - Found ${reviews.length} reviews for product_id: ${product_id}`,
     );
     res.status(200).json(reviews);
   } catch (err) {
@@ -1318,6 +1363,7 @@ module.exports = {
   createProduct,
   getProducts,
   getProductById,
+  getProductBySlug,
   getProductsByCategory,
   updateProduct,
   deleteProduct,

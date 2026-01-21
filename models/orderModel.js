@@ -37,6 +37,10 @@ const orderSchema = mongoose.Schema(
           type: String,
           required: false,
         },
+        selected_color: {
+          type: String,
+          required: false,
+        },
       },
     ],
     total_amount: {
@@ -98,8 +102,12 @@ const orderSchema = mongoose.Schema(
       required: false,
       trim: true,
     },
+    delivered_at: {
+      type: Date,
+      required: false,
+    },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Index for better query performance

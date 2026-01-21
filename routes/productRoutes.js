@@ -3,6 +3,7 @@ const {
   createProduct,
   getProducts,
   getProductById,
+  getProductBySlug,
   getProductsByCategory,
   updateProduct,
   deleteProduct,
@@ -21,6 +22,7 @@ const authHandler = require("../middlewares/authMiddleware");
 const router = express.Router();
 
 router.get("/products", getProducts); // Public access
+router.get("/product/slug/:slug", getProductBySlug); // Public access - must be before :id route
 router.get("/product/:id", getProductById); // Public access
 router.get("/category/:categoryId", getProductsByCategory); // Public access
 router.post("/create-product", createProduct); // Public access

@@ -29,7 +29,9 @@ const getCategoryById = handler(async (req, res) => {
     res.status(400);
     throw new Error("Invalid category ID");
   }
-  const category = await Category.findById(req.params.id).populate("parent_category");
+  const category = await Category.findById(req.params.id).populate(
+    "parent_category",
+  );
   if (!category) {
     res.status(404);
     throw new Error("Category not found");
@@ -95,16 +97,24 @@ const deleteCategory = handler(async (req, res) => {
   }
 
   try {
-    const subcategories = await Category.find({ parent_category: req.params.id });
-    const products = await Product.find({ $or: [{ category: req.params.id }, { subcategories: req.params.id }] });
+    const subcategories = await Category.find({
+      parent_category: req.params.id,
+    });
+    const products = await Product.find({
+      $or: [{ category: req.params.id }, { subcategories: req.params.id }],
+    });
 
     if (subcategories.length > 0) {
       res.status(400);
-      throw new Error(`Cannot delete category: ${subcategories.length} subcategory(ies) associated`);
+      throw new Error(
+        `Cannot delete category: ${subcategories.length} subcategory(ies) associated`,
+      );
     }
     if (products.length > 0) {
       res.status(400);
-      throw new Error(`Cannot delete category: ${products.length} product(s) associated`);
+      throw new Error(
+        `Cannot delete category: ${products.length} product(s) associated`,
+      );
     }
 
     await Category.findByIdAndDelete(req.params.id);
@@ -116,10 +126,38 @@ const deleteCategory = handler(async (req, res) => {
   }
 });
 
+// Get category by name (slug-friendly)
+const getCategoryByName = handler(async (req, res) => {
+  const { name } = req.params;
+
+  // Map URL slugs to category names
+  const categoryMap = {
+    "mens-clothing": "Men's Clothing",
+    watches: "Watches",
+    shoes: "Shoes",
+    pods: "Vapes & Pods",
+    care: "Care",
+  };
+
+  const categoryName = categoryMap[name.toLowerCase()] || name;
+
+  const category = await Category.findOne({
+    name: { $regex: new RegExp(`^${categoryName}$`, "i") },
+  });
+
+  if (!category) {
+    res.status(404);
+    throw new Error("Category not found");
+  }
+
+  res.status(200).json(category);
+});
+
 module.exports = {
   createCategory,
   getCategories,
   getCategoryById,
+  getCategoryByName,
   updateCategory,
   deleteCategory,
 };
