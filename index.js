@@ -152,23 +152,28 @@ app.use((req, res, next) => {
   ];
 
   const origin = req.headers.origin;
+  
+  // Always set CORS headers for allowed origins
   if (allowedOrigins.includes(origin)) {
     res.header("Access-Control-Allow-Origin", origin);
+    res.header("Access-Control-Allow-Credentials", "true");
   }
 
+  // Always include these headers to ensure preflight requests pass
   res.header(
     "Access-Control-Allow-Methods",
     "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
   );
   res.header(
     "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, Accept, Origin, X-Requested-With"
+    "Content-Type, Authorization, Accept, Origin, X-Requested-With, X-CSRF-Token"
   );
-  res.header("Access-Control-Allow-Credentials", "true");
+  res.header("Access-Control-Expose-Headers", "Content-Length, X-Total-Count");
+  res.header("Access-Control-Max-Age", "86400"); // 24 hours
 
   // Handle preflight requests
   if (req.method === "OPTIONS") {
-    return res.sendStatus(204);
+    return res.sendStatus(200);
   }
 
   next();
