@@ -132,11 +132,9 @@ try {
   throw error;
 }
 
-// CORS configuration - Enable for all origins in production
-const cors = require("cors");
-
-const corsOptions = {
-  origin: [
+// Manual CORS headers middleware
+app.use((req, res, next) => {
+  const allowedOrigins = [
     "http://localhost:5173",
     "http://localhost:5174",
     "http://localhost:5175",
@@ -148,21 +146,8 @@ const corsOptions = {
     "https://bzcart.store",
     "https://www.bzcart.store",
     "https://api.bzcart.store",
-  ],
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With", "X-CSRF-Token"],
-  exposedHeaders: ["Content-Length", "X-Total-Count"],
-  maxAge: 86400, // 24 hours
-  optionsSuccessStatus: 200,
-};
+  ];
 
-// Apply CORS middleware
-app.use(cors(corsOptions));
-
-// Also add a manual CORS middleware as backup for edge cases
-app.use((req, res, next) => {
-  const allowedOrigins = corsOptions.origin;
   const origin = req.headers.origin;
 
   if (allowedOrigins.includes(origin)) {
@@ -170,10 +155,12 @@ app.use((req, res, next) => {
     res.header("Access-Control-Allow-Credentials", "true");
   }
 
-  // Handle preflight requests
+  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD");
+  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept, Origin, X-Requested-With, X-CSRF-Token");
+  res.header("Access-Control-Expose-Headers", "Content-Length, X-Total-Count");
+  res.header("Access-Control-Max-Age", "86400");
+
   if (req.method === "OPTIONS") {
-    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD");
-    res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept, Origin, X-Requested-With, X-CSRF-Token");
     return res.sendStatus(200);
   }
 
