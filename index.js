@@ -1,3 +1,4 @@
+// index.js
 const fs = require("fs");
 const http = require("http");
 const https = require("https");
@@ -29,8 +30,7 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: function (origin, callback) {
-      // allow requests with no origin (curl, mobile apps)
-      if (!origin) return callback(null, true);
+      if (!origin) return callback(null, true); // allow curl or mobile apps
       if (allowedOrigins.indexOf(origin) === -1) {
         const msg = `CORS policy does not allow access from: ${origin}`;
         return callback(new Error(msg), false);
@@ -46,7 +46,7 @@ app.use(
       "Origin",
       "X-Requested-With",
     ],
-  }),
+  })
 );
 
 // Handle preflight OPTIONS requests for all routes
@@ -55,13 +55,12 @@ app.options("*", cors());
 // ------------------- Middleware -------------------
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: false, limit: "50mb" }));
-
 app.use(
   "/images",
-  express.static(path.join(__dirname, "images"), { maxAge: "1d", etag: true }),
+  express.static(path.join(__dirname, "images"), { maxAge: "1d", etag: true })
 );
 
-// Multer config
+// ------------------- Multer -------------------
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
@@ -80,7 +79,7 @@ const upload = multer({
 // ------------------- DB Connection -------------------
 connectDB();
 
-// ------------------- Routes -------------------
+// ------------------- Helper Functions -------------------
 const safeRequire = (modulePath) => {
   try {
     return require(modulePath);
@@ -91,23 +90,15 @@ const safeRequire = (modulePath) => {
 };
 
 const registerRoutes = (basePath, ...routeModules) => {
-  const routerName =
-    routeModules.length > 0 &&
-    typeof routeModules[routeModules.length - 1] === "string"
-      ? routeModules.pop()
-      : "unknown routes";
   try {
     app.use(basePath, ...routeModules);
   } catch (err) {
-    console.error(
-      `Error registering ${routerName} at ${basePath}:`,
-      err.message,
-    );
+    console.error(`Error registering routes at ${basePath}:`, err.message);
     throw err;
   }
 };
 
-// Load routers
+// ------------------- Load Routers -------------------
 const slideRouter = safeRequire("./routes/slideRoutes");
 const categoryRouter = safeRequire("./routes/categoryRoutes");
 const productRouter = safeRequire("./routes/productRoutes");
@@ -116,54 +107,30 @@ const reelRouter = safeRequire("./routes/reelRoutes");
 const dealRoutes = safeRequire("./routes/dealRoutes");
 const campaignRoutes = safeRequire("./routes/campaignRoutes");
 
-// Register all routes
-registerRoutes("/api/users", safeRequire("./routes/userRoutes"), "userRoutes");
-registerRoutes(
-  "/api/admins",
-  safeRequire("./routes/adminRoutes"),
-  "adminRoutes",
-);
-registerRoutes("/api/products", productRouter, "productRoutes");
-registerRoutes(
-  "/api/payment",
-  safeRequire("./routes/paymentRoutes"),
-  "paymentRoutes",
-);
-registerRoutes(
-  "/api/orders",
-  safeRequire("./routes/orderRoutes"),
-  "orderRoutes",
-);
-registerRoutes("/api/slides", upload, slideRouter, "slideRoutes");
-registerRoutes("/api/categories", categoryRouter, "categoryRoutes");
-registerRoutes("/api/brands", brandRouter, "brandRoutes");
-registerRoutes("/api/reel", reelRouter, "reelRoutes");
-registerRoutes("/api", dealRoutes, "dealRoutes");
-registerRoutes("/api/campaigns", campaignRoutes, "campaignRoutes");
-registerRoutes(
-  "/api/analytics",
-  safeRequire("./routes/analyticsRoutes"),
-  "analyticsRoutes",
-);
-registerRoutes(
-  "/api/uploads",
-  safeRequire("./routes/uploadRoutes"),
-  "uploadRoutes",
-);
-registerRoutes(
-  "/api/friday-banner",
-  safeRequire("./routes/fridayBannerRoutes"),
-  "fridayBannerRoutes",
-);
+// ------------------- Register Routes -------------------
+registerRoutes("/api/users", safeRequire("./routes/userRoutes"));
+registerRoutes("/api/admins", safeRequire("./routes/adminRoutes"));
+registerRoutes("/api/products", productRouter);
+registerRoutes("/api/payment", safeRequire("./routes/paymentRoutes"));
+registerRoutes("/api/orders", safeRequire("./routes/orderRoutes"));
+registerRoutes("/api/slides", upload, slideRouter);
+registerRoutes("/api/categories", categoryRouter);
+registerRoutes("/api/brands", brandRouter);
+registerRoutes("/api/reel", reelRouter);
+registerRoutes("/api", dealRoutes);
+registerRoutes("/api/campaigns", campaignRoutes);
+registerRoutes("/api/analytics", safeRequire("./routes/analyticsRoutes"));
+registerRoutes("/api/uploads", safeRequire("./routes/uploadRoutes"));
+registerRoutes("/api/friday-banner", safeRequire("./routes/fridayBannerRoutes"));
 
-// Multer error handling
+// ------------------- Error Handling -------------------
+// Multer errors
 app.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError)
-    return res.status(400).json({ message: err.message });
+  if (err instanceof multer.MulterError) return res.status(400).json({ message: err.message });
   next(err);
 });
 
-// General error handling
+// General errors
 app.use(errorHandler);
 
 // ------------------- HTTPS Setup -------------------
@@ -171,30 +138,22 @@ const HTTPS_PORT = 443;
 const HTTP_PORT = 80;
 
 const sslOptions = {
-  key: fs.readFileSync(
-    "/etc/letsencrypt/live/bzbackend.online-0001/privkey.pem",
-  ),
-  cert: fs.readFileSync(
-    "/etc/letsencrypt/live/bzbackend.online-0001/fullchain.pem",
-  ),
+  key: fs.readFileSync("/etc/letsencrypt/live/bzbackend.online-0001/privkey.pem"),
+  cert: fs.readFileSync("/etc/letsencrypt/live/bzbackend.online-0001/fullchain.pem"),
 };
 
 // HTTP → HTTPS redirect
-http
-  .createServer((req, res) => {
-    res.writeHead(301, { Location: "https://" + req.headers.host + req.url });
-    res.end();
-  })
-  .listen(HTTP_PORT, () =>
-    console.log(`HTTP redirect running on port ${HTTP_PORT}`),
-  );
+http.createServer((req, res) => {
+  res.writeHead(301, { Location: "https://" + req.headers.host + req.url });
+  res.end();
+}).listen(HTTP_PORT, () => console.log(`HTTP redirect running on port ${HTTP_PORT}`));
 
 // HTTPS server
 https.createServer(sslOptions, app).listen(HTTPS_PORT, () => {
   console.log(`HTTPS server running on port ${HTTPS_PORT}`);
 });
 
-// Graceful shutdown
+// ------------------- Graceful Shutdown -------------------
 process.on("SIGTERM", () => serverClose());
 process.on("SIGINT", () => serverClose());
 
