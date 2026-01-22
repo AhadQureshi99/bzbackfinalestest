@@ -17,7 +17,7 @@ function safeParsePath(path) {
   // Handle obviously invalid cases
   if (/^https?:\/\//i.test(trimmedPath)) {
     console.warn(
-      `Invalid route path detected (appears to be a full URL): "${trimmedPath}". Replacing with root path "/"`
+      `Invalid route path detected (appears to be a full URL): "${trimmedPath}". Replacing with root path "/"`,
     );
     return "/";
   }
@@ -25,7 +25,7 @@ function safeParsePath(path) {
   // Handle malformed parameter syntax where colon is not preceded by a slash
   if (trimmedPath.startsWith(":") && !trimmedPath.startsWith("/:")) {
     console.warn(
-      `Invalid route path detected (starts with lone colon): "${trimmedPath}". Replacing with root path "/"`
+      `Invalid route path detected (starts with lone colon): "${trimmedPath}". Replacing with root path "/"`,
     );
     return "/";
   }
@@ -34,7 +34,7 @@ function safeParsePath(path) {
     // Reject full URLs and other obviously invalid route strings early.
     if (/:\/\//.test(trimmedPath) || /^https?:/i.test(trimmedPath)) {
       console.warn(
-        `Rejected route path that appears to be a URL: "${trimmedPath}" -> using "/" instead`
+        `Rejected route path that appears to be a URL: "${trimmedPath}" -> using "/" instead`,
       );
       return "/";
     }
@@ -45,7 +45,7 @@ function safeParsePath(path) {
       const hasValidParam = /\/:\w+/.test(trimmedPath);
       if (!hasValidParam) {
         console.warn(
-          `Rejected route path containing stray colon: "${trimmedPath}" -> using "/" instead`
+          `Rejected route path containing stray colon: "${trimmedPath}" -> using "/" instead`,
         );
         return "/";
       }
@@ -58,10 +58,10 @@ function safeParsePath(path) {
       console.error(`Invalid route pattern detected: "${trimmedPath}"`);
       console.error(`Error: ${error.message}`);
       console.error(
-        "This error occurs when a route contains an unescaped colon (:) that is interpreted as an incomplete parameter."
+        "This error occurs when a route contains an unescaped colon (:) that is interpreted as an incomplete parameter.",
       );
       console.error(
-        'Replacing invalid route with root path "/" to prevent application crash.'
+        'Replacing invalid route with root path "/" to prevent application crash.',
       );
       return "/";
     }
@@ -101,7 +101,7 @@ function registerRoutes(basePath, ...routeModules) {
   } catch (error) {
     console.error(
       `✗ Error registering routes for ${routerName} at path "${basePath}":`,
-      error.message
+      error.message,
     );
     throw error;
   }
@@ -127,52 +127,10 @@ try {
   campaignRoutes = safeRequire("./routes/campaignRoutes");
 } catch (error) {
   console.error(
-    "Failed to load one or more route modules. The application cannot start without valid route definitions."
+    "Failed to load one or more route modules. The application cannot start without valid route definitions.",
   );
   throw error;
 }
-
-// CORS disabled - using manual CORS headers middleware instead
-// The cors package was causing path-to-regexp parsing errors.
-
-// Manual CORS headers middleware (replaces the problematic cors package)
-app.use((req, res, next) => {
-  const allowedOrigins = [
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://localhost:5175",
-    "http://dashboards.bzcart.store",
-    "https://bz-cart-d-ashboard.vercel.app",
-    "https://dashboardbzcart.vercel.app",
-    "https://dashboard.bzcart.store",
-    "https://dashboards.bzcart.store",
-    "https://bzcart.store",
-    "https://www.bzcart.store",
-    "https://api.bzcart.store",
-  ];
-
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.header("Access-Control-Allow-Origin", origin);
-  }
-
-  res.header(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
-  );
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, Accept, Origin, X-Requested-With"
-  );
-  res.header("Access-Control-Allow-Credentials", "true");
-
-  // Handle preflight requests
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(204);
-  }
-
-  next();
-});
 
 // Middleware
 app.use(express.json({ limit: "50mb" }));
@@ -184,7 +142,7 @@ app.use(
   express.static(path.join(__dirname, "images"), {
     maxAge: "1d", // Cache images for 1 day
     etag: true, // Enable ETag for cache validation
-  })
+  }),
 );
 
 // Multer configuration
@@ -213,7 +171,7 @@ registerRoutes("/api/products", productRouter, "productRoutes");
 registerRoutes(
   "/api/payment",
   require("./routes/paymentRoutes"),
-  "paymentRoutes"
+  "paymentRoutes",
 );
 registerRoutes("/api/orders", require("./routes/orderRoutes"), "orderRoutes");
 registerRoutes("/api/slides", upload, slideRouter, "slideRoutes");
@@ -225,14 +183,14 @@ registerRoutes("/api/campaigns", campaignRoutes, "campaignRoutes");
 registerRoutes(
   "/api/analytics",
   require("./routes/analyticsRoutes"),
-  "analyticsRoutes"
+  "analyticsRoutes",
 );
 
 // Upload processing route (server-side conversion to webp <=100KB)
 registerRoutes(
   "/api/uploads",
   require("./routes/uploadRoutes"),
-  "uploadRoutes"
+  "uploadRoutes",
 );
 
 // Multer error handling

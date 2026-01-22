@@ -1,4 +1,10 @@
-const handler = require("express-async-handler");
+const { OAuth2Client } = require("google-auth-library");
+const GOOGLE_CLIENT_ID =
+  process.env.GOOGLE_CLIENT_ID ||
+  "716052649262-4of7le2fv62u3ae3a8qa1rahclucnk92.apps.googleusercontent.com";
+const googleClient = new OAuth2Client(GOOGLE_CLIENT_ID);
+
+const asyncHandler = require("express-async-handler");
 const userModel = require("../models/userModel");
 const tempUserModel = require("../models/tempUserModel");
 const discountCodeModel = require("../models/discountCodeModel");
@@ -7,13 +13,17 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
-const path = require("path");
+
 // Force the sender address to the required value per project policy.
-// Use the plain email address (no display name) so some mail clients show the full address.
 const FORCE_MAIL_FROM = "info@bzcart.store";
-// Use a hosted image URL so the image is not sent as an attachment. This prevents
-// the image from appearing in the recipient's attachments list.
+// Use a hosted image URL so the image is not sent as an attachment.
 const HOSTED_FAVICON_URL = "https://bzcart.store/logg.png";
+
+const generateToken = (id) => {
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
+    expiresIn: "15d",
+  });
+};
 
 const generateOTP = () => {
   return crypto.randomInt(100000, 999999); // Secure OTP generation
@@ -51,106 +61,25 @@ const sendOTP = (email, otp) => {
   <link rel="icon" href="${HOSTED_FAVICON_URL}" type="image/png" />
   <title>BZ Cart - OTP Verification</title>
   <style>
-    body {
-      font-family: 'Helvetica Neue', Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-      background: linear-gradient(135deg, #ffa500 0%, #ff8c00 100%);
-      min-height: 100vh;
-    }
-    .email-container {
-      max-width: 600px;
-      margin: 40px auto;
-      background: #ffffff;
-      border-radius: 16px;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-      overflow: hidden;
-      border: 1px solid #e0e0e0;
-    }
-    .header {
-      background: linear-gradient(135deg, #ffa500 0%, #ff8c00 100%);
-      color: #ffffff;
-      text-align: center;
-      padding: 30px 20px;
-      font-size: 28px;
-      font-weight: bold;
-      position: relative;
-    }
-    .header::after {
-      content: '';
-      position: absolute;
-      bottom: 0;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 80%;
-      height: 4px;
-      background: rgba(255, 255, 255, 0.3);
-      border-radius: 2px;
-    }
-    .logo {
-      font-size: 36px;
-      font-weight: bold;
-      margin-bottom: 10px;
-      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-    }
-    .body {
-      padding: 40px 30px;
-      text-align: center;
-      color: #333333;
-    }
-    .greeting {
-      font-size: 18px;
-      margin-bottom: 20px;
-      color: #555555;
-    }
-    .otp {
-      font-size: 48px;
-      font-weight: bold;
-      color: #ffa500;
-      margin: 30px 0;
-      letter-spacing: 8px;
-      background: #f9f9f9;
-      padding: 20px;
-      border-radius: 12px;
-      border: 2px solid #ffa500;
-      display: inline-block;
-      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
-    }
-    .note {
-      color: #777777;
-      font-size: 14px;
-      margin-top: 20px;
-      line-height: 1.5;
-    }
-    .footer {
-      background: #f8f8f8;
-      padding: 20px;
-      text-align: center;
-      font-size: 12px;
-      color: #999999;
-      border-top: 1px solid #e0e0e0;
-    }
-    .footer p {
-      margin: 5px 0;
-    }
-    .highlight {
-      color: #ffa500;
-      font-weight: bold;
-    }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; margin:0; padding:0; background: linear-gradient(135deg, #ffa500 0%, #ff8c00 100%); min-height:100vh; }
+    .email-container { max-width:600px; margin:40px auto; background:#ffffff; border-radius:16px; box-shadow:0 10px 30px rgba(0,0,0,0.15); overflow:hidden; border:1px solid #e0e0e0; }
+    .header { background: linear-gradient(135deg, #ffa500 0%, #ff8c00 100%); color:#ffffff; text-align:center; padding:30px 20px; font-size:28px; font-weight:bold; position:relative; }
+    .header::after { content:''; position:absolute; bottom:0; left:50%; transform:translateX(-50%); width:80%; height:4px; background:rgba(255,255,255,0.3); border-radius:2px; }
+    .logo { font-size:36px; font-weight:bold; margin-bottom:10px; text-shadow:0 2px 4px rgba(0,0,0,0.1); }
+    .body { padding:40px 30px; text-align:center; color:#333333; }
+    .greeting { font-size:18px; margin-bottom:20px; color:#555555; }
+    .otp { font-size:48px; font-weight:bold; color:#ffa500; margin:30px 0; letter-spacing:8px; background:#f9f9f9; padding:20px; border-radius:12px; border:2px solid #ffa500; display:inline-block; text-shadow:0 1px 2px rgba(0,0,0,0.1); }
+    .note { color:#777777; font-size:14px; margin-top:20px; line-height:1.5; }
+    .footer { background:#f8f8f8; padding:20px; text-align:center; font-size:12px; color:#999999; border-top:1px solid #e0e0e0; }
+    .highlight { color:#ffa500; font-weight:bold; }
   </style>
 </head>
 <body>
   <div class="email-container">
     <div class="header">
-      <table role="presentation" width="100%" style="border:none;">
-        <tr>
-          <td style="text-align:center;">
-            <img src="${HOSTED_FAVICON_URL}" alt="BZ Cart" width="110" height="110" style="vertical-align:middle;border-radius:12px;margin-right:12px;display:inline-block;" />
-            <span class="logo" style="display:inline-block;vertical-align:middle;color:#ffffff;font-size:36px;">bzcart.store</span>
-            <div class="header-text" style="color:#ffffff;margin-top:6px;">Verification Code</div>
-          </td>
-        </tr>
-      </table>
+      <img src="${HOSTED_FAVICON_URL}" alt="BZ Cart" width="110" height="110" style="vertical-align:middle;border-radius:12px;margin-right:12px;" />
+      <span class="logo">bzcart.store</span>
+      <div style="color:#ffffff;margin-top:6px;">Verification Code</div>
     </div>
     <div class="body">
       <p class="greeting">Hello! Welcome to BZ Cart, your ultimate e-commerce destination.</p>
@@ -160,21 +89,16 @@ const sendOTP = (email, otp) => {
     </div>
     <div class="footer">
       <p>If you didn’t request this, please ignore this email or contact our support team.</p>
-      <p>&copy; 2023 BZ Cart. All rights reserved.</p>
+      <p>© 2023 BZ Cart. All rights reserved.</p>
     </div>
   </div>
 </body>
 </html>`,
-    attachments: [],
   };
 
   transporter.sendMail(mailOptions, (error, info) => {
-    if (error) {
-      console.error("Email error:", error);
-      throw new Error("Failed to send OTP email");
-    } else {
-      console.log("Mail sent successfully:", info.response);
-    }
+    if (error) console.error("Email error:", error);
+    else console.log("Mail sent successfully:", info.response);
   });
 };
 
@@ -187,9 +111,7 @@ const sendDiscountCode = (email, code) => {
       user: process.env.MAIL_USER,
       pass: process.env.MAIL_PASS,
     },
-    tls: {
-      rejectUnauthorized: false,
-    },
+    tls: { rejectUnauthorized: false },
   });
 
   const mailOptions = {
@@ -201,68 +123,22 @@ const sendDiscountCode = (email, code) => {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="color-scheme" content="light">
-  <meta name="supported-color-schemes" content="light">
-  <link rel="icon" href="${HOSTED_FAVICON_URL}" type="image/png" />
   <title>BZ Cart - Discount Code</title>
   <style>
-    body {
-      font-family: 'Helvetica Neue', Arial, sans-serif;
-      margin: 0;
-      padding: 0;
-      background-color: #ffa500;
-    }
-    .email-container {
-      max-width: 600px;
-      margin: 20px auto;
-      background: #ffffff;
-      border-radius: 8px;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-      overflow: hidden;
-    }
-    .header {
-      background: #ffa500;
-      color: #ffffff;
-      text-align: center;
-      padding: 20px;
-      font-size: 24px;
-    }
-    .body {
-      padding: 20px;
-      text-align: center;
-    }
-    .code {
-      font-size: 32px;
-      font-weight: bold;
-      color: #333333;
-      margin: 20px 0;
-      letter-spacing: 4px;
-    }
-    .note {
-      color: #555555;
-      font-size: 14px;
-      margin-top: 10px;
-    }
-    .footer {
-      background: #ffa500;
-      padding: 10px;
-      text-align: center;
-      font-size: 12px;
-      color: #ffffff;
-    }
+    body { font-family: 'Helvetica Neue', Arial, sans-serif; margin:0; padding:0; background-color:#ffa500; }
+    .email-container { max-width:600px; margin:20px auto; background:#ffffff; border-radius:8px; box-shadow:0 4px 10px rgba(0,0,0,0.1); overflow:hidden; }
+    .header { background:#ffa500; color:#ffffff; text-align:center; padding:20px; font-size:24px; }
+    .body { padding:20px; text-align:center; }
+    .code { font-size:32px; font-weight:bold; color:#333333; margin:20px 0; letter-spacing:4px; }
+    .note { color:#555555; font-size:14px; margin-top:10px; }
+    .footer { background:#ffa500; padding:10px; text-align:center; font-size:12px; color:#ffffff; }
   </style>
 </head>
 <body>
   <div class="email-container">
     <div class="header">
-      <table role="presentation" width="100%" style="border:none;">
-        <tr>
-          <td style="text-align:center;">
-            <img src="${HOSTED_FAVICON_URL}" alt="BZ Cart" width="110" height="110" style="vertical-align:middle;border-radius:12px;margin-right:12px;display:inline-block;" />
-            <span class="header-text" style="display:inline-block;vertical-align:middle;color:#ffffff;font-weight:bold;font-size:20px;">BZ Cart - Your 10% Discount Code</span>
-          </td>
-        </tr>
-      </table>
+      <img src="${HOSTED_FAVICON_URL}" alt="BZ Cart" width="110" height="110" style="vertical-align:middle;border-radius:12px;margin-right:12px;" />
+      <span style="color:#ffffff;font-weight:bold;font-size:20px;">BZ Cart - Your 10% Discount Code</span>
     </div>
     <div class="body">
       <p>Thank you for subscribing! Use the following code at checkout to get 10% off your first order:</p>
@@ -275,16 +151,11 @@ const sendDiscountCode = (email, code) => {
   </div>
 </body>
 </html>`,
-    attachments: [],
   };
 
   transporter.sendMail(mailOptions, (error, info) => {
-    if (error) {
-      console.error("Email error:", error);
-      throw new Error("Failed to send discount code email");
-    } else {
-      console.log("Discount code email sent successfully:", info.response);
-    }
+    if (error) console.error("Email error:", error);
+    else console.log("Discount code email sent:", info.response);
   });
 };
 
@@ -315,53 +186,84 @@ const sendResetEmail = (email, token) => {
   };
 
   transporter.sendMail(mailOptions, (error, info) => {
-    if (error) {
-      console.error("Reset email error:", error);
-      throw new Error("Failed to send reset email");
-    } else {
-      console.log("Reset mail sent:", info.response);
-    }
+    if (error) console.error("Reset email error:", error);
+    else console.log("Reset mail sent:", info.response);
   });
 };
 
-const getCurrentUser = handler(async (req, res) => {
-  const user_id = req.user?.id;
-  console.log("userController - getCurrentUser: Called with user_id:", user_id);
+// ────────────────────────────────────────────────
+// Controllers
+// ────────────────────────────────────────────────
 
+const googleLogin = asyncHandler(async (req, res) => {
+  const { credential } = req.body;
+  if (!credential) {
+    res.status(400);
+    throw new Error("Missing Google credential");
+  }
+
+  let payload;
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: GOOGLE_CLIENT_ID,
+    });
+    payload = ticket.getPayload();
+  } catch (err) {
+    res.status(401);
+    throw new Error("Invalid Google token");
+  }
+
+  const { email, name, picture } = payload;
+  if (!email) {
+    res.status(400);
+    throw new Error("Google account has no email");
+  }
+
+  let user = await userModel.findOne({ email });
+  if (!user) {
+    user = await userModel.create({
+      username: name || email.split("@")[0],
+      email,
+      password: bcrypt.hashSync(Math.random().toString(36), 10),
+      profileImage: picture || null,
+      role: "user",
+    });
+  }
+
+  res.status(200).json({
+    _id: user._id,
+    username: user.username,
+    email: user.email,
+    role: user.role,
+    profileImage: user.profileImage,
+    token: generateToken(user._id),
+  });
+});
+
+const getCurrentUser = asyncHandler(async (req, res) => {
+  const user_id = req.user?.id;
   if (!user_id) {
-    console.log("userController - getCurrentUser: No user authenticated");
     res.status(401);
     throw new Error("Not authorized, no user found");
   }
 
-  try {
-    const user = await userModel.findById(user_id).select("-password");
-    if (!user) {
-      console.log("userController - getCurrentUser: User not found:", user_id);
-      res.status(404);
-      throw new Error("User not found");
-    }
-    console.log("userController - getCurrentUser: Found user:", {
-      id: user._id,
-      email: user.email,
-    });
-    res.status(200).json({
-      _id: user._id,
-      username: user.username,
-      email: user.email,
-      role: user.role,
-    });
-  } catch (err) {
-    console.error("userController - getCurrentUser: Error:", err.message);
-    res.status(500);
-    throw new Error("Failed to fetch user");
+  const user = await userModel.findById(user_id).select("-password");
+  if (!user) {
+    res.status(404);
+    throw new Error("User not found");
   }
+
+  res.status(200).json({
+    _id: user._id,
+    username: user.username,
+    email: user.email,
+    role: user.role,
+  });
 });
 
-const registerUser = handler(async (req, res) => {
+const registerUser = asyncHandler(async (req, res) => {
   const { username, email, password } = req.body;
-
-  console.log("userController - registerUser: Registering with:", { email });
 
   if (!username || !email || !password) {
     res.status(400);
@@ -372,7 +274,7 @@ const registerUser = handler(async (req, res) => {
   const findTempUser = await tempUserModel.findOne({ email });
 
   if (findUser || findTempUser) {
-    res.status(401);
+    res.status(400);
     throw new Error("Email already exists!");
   }
 
@@ -388,11 +290,7 @@ const registerUser = handler(async (req, res) => {
 
   sendOTP(email, myOTP);
 
-  console.log(
-    "userController - registerUser: Success, tempUser:",
-    tempUser._id,
-  );
-  res.status(201).send({
+  res.status(201).json({
     _id: tempUser._id,
     username: tempUser.username,
     email: tempUser.email,
@@ -400,14 +298,9 @@ const registerUser = handler(async (req, res) => {
   });
 });
 
-const verifyOTP = handler(async (req, res) => {
+const verifyOTP = asyncHandler(async (req, res) => {
   const user_id = req.user._id;
   const { otp } = req.body;
-
-  console.log(
-    "userController - verifyOTP: Verifying OTP for user_id:",
-    user_id,
-  );
 
   if (!otp) {
     res.status(400);
@@ -430,8 +323,7 @@ const verifyOTP = handler(async (req, res) => {
 
     await tempUserModel.deleteOne({ _id: user_id });
 
-    console.log("userController - verifyOTP: Success, user:", createdUser._id);
-    res.status(200).send({
+    res.status(200).json({
       _id: createdUser._id,
       username: createdUser.username,
       email: createdUser.email,
@@ -444,10 +336,8 @@ const verifyOTP = handler(async (req, res) => {
   }
 });
 
-const loginUser = handler(async (req, res) => {
+const loginUser = asyncHandler(async (req, res) => {
   const { email, password } = req.body;
-
-  console.log("userController - loginUser: Logging in with:", { email });
 
   if (!email || !password) {
     res.status(400);
@@ -462,8 +352,7 @@ const loginUser = handler(async (req, res) => {
   }
 
   if (await bcrypt.compare(password, findUser.password)) {
-    console.log("userController - loginUser: Success, user:", findUser._id);
-    res.status(200).send({
+    res.status(200).json({
       _id: findUser._id,
       username: findUser.username,
       email: findUser.email,
@@ -477,8 +366,7 @@ const loginUser = handler(async (req, res) => {
   }
 });
 
-// Forgot password - generate token and email user
-const forgotPassword = handler(async (req, res) => {
+const forgotPassword = asyncHandler(async (req, res) => {
   const { email } = req.body;
   if (!email) {
     res.status(400);
@@ -491,7 +379,6 @@ const forgotPassword = handler(async (req, res) => {
     throw new Error("User not found");
   }
 
-  // Generate a secure token
   const token = crypto.randomBytes(20).toString("hex");
   user.resetPasswordToken = token;
   user.resetPasswordExpires = Date.now() + 60 * 60 * 1000; // 1 hour
@@ -501,8 +388,7 @@ const forgotPassword = handler(async (req, res) => {
   res.status(200).json({ message: "Reset email sent" });
 });
 
-// Reset password using token
-const resetPassword = handler(async (req, res) => {
+const resetPassword = asyncHandler(async (req, res) => {
   const { token, password } = req.body;
   if (!token || !password) {
     res.status(400);
@@ -527,8 +413,7 @@ const resetPassword = handler(async (req, res) => {
   res.status(200).json({ message: "Password reset successful" });
 });
 
-// Update profile image (authenticated)
-const updateProfileImage = handler(async (req, res) => {
+const updateProfileImage = asyncHandler(async (req, res) => {
   const userId = req.user.id;
   const { imageUrl } = req.body;
   if (!imageUrl) {
@@ -551,23 +436,21 @@ const updateProfileImage = handler(async (req, res) => {
   });
 });
 
-const getAllUsers = handler(async (req, res) => {
-  console.log("userController - getAllUsers: Fetching all users");
+const getAllUsers = asyncHandler(async (req, res) => {
   const users = await userModel
     .find({}, "_id username email role profileImage createdAt")
     .lean();
+
   if (!users || users.length === 0) {
     res.status(404);
     throw new Error("No users found");
   }
-  console.log("userController - getAllUsers: Found", users.length, "users");
-  res.status(200).send(users);
+
+  res.status(200).json(users);
 });
 
-const subscribeUser = handler(async (req, res) => {
+const subscribeUser = asyncHandler(async (req, res) => {
   const { email } = req.body;
-
-  console.log("userController - subscribeUser: Subscribing with:", { email });
 
   if (!email) {
     res.status(400);
@@ -584,19 +467,13 @@ const subscribeUser = handler(async (req, res) => {
   await discountCodeModel.create({ email, code });
   sendDiscountCode(email, code);
 
-  console.log("userController - subscribeUser: Success, code sent:", code);
-  res.status(201).send({
+  res.status(201).json({
     message: "Discount code sent to your email!",
   });
 });
 
-const validateDiscountCode = handler(async (req, res) => {
+const validateDiscountCode = asyncHandler(async (req, res) => {
   const { email, code } = req.body;
-
-  console.log("userController - validateDiscountCode: Validating code for:", {
-    email,
-    code,
-  });
 
   if (!email || !code) {
     res.status(400);
@@ -609,32 +486,21 @@ const validateDiscountCode = handler(async (req, res) => {
   });
 
   if (!discount) {
-    console.log("userController - validateDiscountCode: Invalid code");
-    res.status(400);
-    return res.json({ isValid: false, message: "Invalid discount code" });
+    return res.status(400).json({ isValid: false, message: "Invalid discount code" });
   }
 
   if (discount.isUsed) {
-    console.log("userController - validateDiscountCode: Code already used");
-    res.status(400);
-    return res.json({
-      isValid: false,
-      message: "Discount code has already been used",
-    });
+    return res.status(400).json({ isValid: false, message: "Discount code has already been used" });
   }
 
-  if (discount.expiresAt < Date.now()) {
-    console.log("userController - validateDiscountCode: Code expired");
-    res.status(400);
-    return res.json({ isValid: false, message: "Discount code has expired" });
+  if (discount.expiresAt && discount.expiresAt < Date.now()) {
+    return res.status(400).json({ isValid: false, message: "Discount code has expired" });
   }
 
-  console.log("userController - validateDiscountCode: Valid code");
   res.status(200).json({ isValid: true, message: "Valid discount code" });
 });
 
-// Delete User
-const deleteUser = handler(async (req, res) => {
+const deleteUser = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   const user = await userModel.findById(id);
@@ -643,14 +509,12 @@ const deleteUser = handler(async (req, res) => {
     throw new Error("User not found");
   }
 
-  // Delete the user
   await userModel.findByIdAndDelete(id);
 
   res.status(200).json({ message: "User deleted successfully" });
 });
 
-// Get User by ID
-const getUserById = handler(async (req, res) => {
+const getUserById = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
   const user = await userModel.findById(id).select("-password");
@@ -659,7 +523,6 @@ const getUserById = handler(async (req, res) => {
     throw new Error("User not found");
   }
 
-  // Get user's order count
   const orderCount = await orderModel.countDocuments({ user_id: id });
 
   res.status(200).json({
@@ -667,12 +530,6 @@ const getUserById = handler(async (req, res) => {
     orderCount,
   });
 });
-
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: "15d",
-  });
-};
 
 module.exports = {
   getCurrentUser,
@@ -687,4 +544,5 @@ module.exports = {
   updateProfileImage,
   deleteUser,
   getUserById,
+  googleLogin,
 };
