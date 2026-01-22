@@ -2,33 +2,11 @@ const express = require("express");
 const errorHandler = require("./middlewares/errorMiddleware");
 const connectDB = require("./config/connectDB");
 const multer = require("multer");
-const https = require("https");
-const fs = require("fs");
-const path = require("path");
+const http = require("http");
 
 const app = express();
-
-// Load SSL certificates for HTTPS
-let server;
-try {
-  const certPath = "/etc/letsencrypt/live/bzbackend.online-0001/fullchain.pem";
-  const keyPath = "/etc/letsencrypt/live/bzbackend.online-0001/privkey.pem";
-  
-  if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
-    const options = {
-      cert: fs.readFileSync(certPath),
-      key: fs.readFileSync(keyPath),
-    };
-    server = https.createServer(options, app);
-    console.log("HTTPS server created with Let's Encrypt certificate");
-  } else {
-    console.warn("Certificate files not found, using HTTP");
-    server = require("http").createServer(app);
-  }
-} catch (err) {
-  console.warn("Failed to load HTTPS certificates, falling back to HTTP:", err.message);
-  server = require("http").createServer(app);
-}
+const server = http.createServer(app);
+const path = require("path");
 
 // Safe path parsing function with comprehensive error handling
 function safeParsePath(path) {
@@ -39,7 +17,7 @@ function safeParsePath(path) {
   // Handle obviously invalid cases
   if (/^https?:\/\//i.test(trimmedPath)) {
     console.warn(
-      `Invalid route path detected (appears to be a full URL): "${trimmedPath}". Replacing with root path "/"`,
+      `Invalid route path detected (appears to be a full URL): "${trimmedPath}". Replacing with root path "/"`
     );
     return "/";
   }
@@ -47,7 +25,7 @@ function safeParsePath(path) {
   // Handle malformed parameter syntax where colon is not preceded by a slash
   if (trimmedPath.startsWith(":") && !trimmedPath.startsWith("/:")) {
     console.warn(
-      `Invalid route path detected (starts with lone colon): "${trimmedPath}". Replacing with root path "/"`,
+      `Invalid route path detected (starts with lone colon): "${trimmedPath}". Replacing with root path "/"`
     );
     return "/";
   }
@@ -56,7 +34,7 @@ function safeParsePath(path) {
     // Reject full URLs and other obviously invalid route strings early.
     if (/:\/\//.test(trimmedPath) || /^https?:/i.test(trimmedPath)) {
       console.warn(
-        `Rejected route path that appears to be a URL: "${trimmedPath}" -> using "/" instead`,
+        `Rejected route path that appears to be a URL: "${trimmedPath}" -> using "/" instead`
       );
       return "/";
     }
@@ -67,7 +45,7 @@ function safeParsePath(path) {
       const hasValidParam = /\/:\w+/.test(trimmedPath);
       if (!hasValidParam) {
         console.warn(
-          `Rejected route path containing stray colon: "${trimmedPath}" -> using "/" instead`,
+          `Rejected route path containing stray colon: "${trimmedPath}" -> using "/" instead`
         );
         return "/";
       }
@@ -80,10 +58,10 @@ function safeParsePath(path) {
       console.error(`Invalid route pattern detected: "${trimmedPath}"`);
       console.error(`Error: ${error.message}`);
       console.error(
-        "This error occurs when a route contains an unescaped colon (:) that is interpreted as an incomplete parameter.",
+        "This error occurs when a route contains an unescaped colon (:) that is interpreted as an incomplete parameter."
       );
       console.error(
-        'Replacing invalid route with root path "/" to prevent application crash.',
+        'Replacing invalid route with root path "/" to prevent application crash.'
       );
       return "/";
     }
@@ -123,7 +101,7 @@ function registerRoutes(basePath, ...routeModules) {
   } catch (error) {
     console.error(
       `✗ Error registering routes for ${routerName} at path "${basePath}":`,
-      error.message,
+      error.message
     );
     throw error;
   }
@@ -149,14 +127,16 @@ try {
   campaignRoutes = safeRequire("./routes/campaignRoutes");
 } catch (error) {
   console.error(
-    "Failed to load one or more route modules. The application cannot start without valid route definitions.",
+    "Failed to load one or more route modules. The application cannot start without valid route definitions."
   );
   throw error;
 }
 
-// Manual CORS headers middleware - Place BEFORE all routes
+// CORS disabled - using manual CORS headers middleware instead
+// The cors package was causing path-to-regexp parsing errors.
+
+// Manual CORS headers middleware (replaces the problematic cors package)
 app.use((req, res, next) => {
-  const origin = req.headers.origin;
   const allowedOrigins = [
     "http://localhost:5173",
     "http://localhost:5174",
@@ -171,20 +151,24 @@ app.use((req, res, next) => {
     "https://api.bzcart.store",
   ];
 
-  // Set CORS headers for allowed origins
+  const origin = req.headers.origin;
   if (allowedOrigins.includes(origin)) {
-    res.setHeader("Access-Control-Allow-Origin", origin);
-    res.setHeader("Access-Control-Allow-Credentials", "true");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept, Origin, X-Requested-With, X-CSRF-Token");
-    res.setHeader("Access-Control-Expose-Headers", "Content-Length, X-Total-Count");
-    res.setHeader("Access-Control-Max-Age", "86400");
+    res.header("Access-Control-Allow-Origin", origin);
   }
 
-  // Always handle OPTIONS requests
+  res.header(
+    "Access-Control-Allow-Methods",
+    "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
+  );
+  res.header(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization, Accept, Origin, X-Requested-With"
+  );
+  res.header("Access-Control-Allow-Credentials", "true");
+
+  // Handle preflight requests
   if (req.method === "OPTIONS") {
-    res.status(200).end();
-    return;
+    return res.sendStatus(204);
   }
 
   next();
@@ -200,7 +184,7 @@ app.use(
   express.static(path.join(__dirname, "images"), {
     maxAge: "1d", // Cache images for 1 day
     etag: true, // Enable ETag for cache validation
-  }),
+  })
 );
 
 // Multer configuration
@@ -229,7 +213,7 @@ registerRoutes("/api/products", productRouter, "productRoutes");
 registerRoutes(
   "/api/payment",
   require("./routes/paymentRoutes"),
-  "paymentRoutes",
+  "paymentRoutes"
 );
 registerRoutes("/api/orders", require("./routes/orderRoutes"), "orderRoutes");
 registerRoutes("/api/slides", upload, slideRouter, "slideRoutes");
@@ -241,14 +225,14 @@ registerRoutes("/api/campaigns", campaignRoutes, "campaignRoutes");
 registerRoutes(
   "/api/analytics",
   require("./routes/analyticsRoutes"),
-  "analyticsRoutes",
+  "analyticsRoutes"
 );
 
 // Upload processing route (server-side conversion to webp <=100KB)
 registerRoutes(
   "/api/uploads",
   require("./routes/uploadRoutes"),
-  "uploadRoutes",
+  "uploadRoutes"
 );
 
 // Multer error handling
@@ -283,7 +267,7 @@ app.use(handleMulterError);
 app.use(errorHandler);
 
 // Start server
-const PORT = process.env.PORT || 443;
+const PORT = process.env.PORT || 3003;
 
 server.listen(PORT, () => {
   console.log(`Server started successfully on port: ${PORT}`);
