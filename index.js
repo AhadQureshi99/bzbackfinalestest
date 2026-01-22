@@ -132,8 +132,9 @@ try {
   throw error;
 }
 
-// Manual CORS headers middleware
+// Manual CORS headers middleware - Place BEFORE all routes
 app.use((req, res, next) => {
+  const origin = req.headers.origin;
   const allowedOrigins = [
     "http://localhost:5173",
     "http://localhost:5174",
@@ -148,20 +149,20 @@ app.use((req, res, next) => {
     "https://api.bzcart.store",
   ];
 
-  const origin = req.headers.origin;
-
+  // Set CORS headers for allowed origins
   if (allowedOrigins.includes(origin)) {
-    res.header("Access-Control-Allow-Origin", origin);
-    res.header("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Origin", origin);
+    res.setHeader("Access-Control-Allow-Credentials", "true");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept, Origin, X-Requested-With, X-CSRF-Token");
+    res.setHeader("Access-Control-Expose-Headers", "Content-Length, X-Total-Count");
+    res.setHeader("Access-Control-Max-Age", "86400");
   }
 
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization, Accept, Origin, X-Requested-With, X-CSRF-Token");
-  res.header("Access-Control-Expose-Headers", "Content-Length, X-Total-Count");
-  res.header("Access-Control-Max-Age", "86400");
-
+  // Always handle OPTIONS requests
   if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
+    res.status(200).end();
+    return;
   }
 
   next();
