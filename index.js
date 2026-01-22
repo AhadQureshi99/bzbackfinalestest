@@ -6,6 +6,7 @@ const express = require("express");
 const multer = require("multer");
 const errorHandler = require("./middlewares/errorMiddleware");
 const connectDB = require("./config/connectDB");
+const cors = require("cors");
 
 require("dotenv").config();
 
@@ -16,34 +17,40 @@ const allowedOrigins = [
   "http://localhost:5173",
   "http://localhost:5174",
   "http://localhost:5175",
-  "http://dashboards.bzcart.store",
-  "https://bz-cart-d-ashboard.vercel.app",
-  "https://dashboardbzcart.vercel.app",
+  "https://www.bzcart.store",
+  "https://bzcart.store",
   "https://dashboard.bzcart.store",
   "https://dashboards.bzcart.store",
-  "https://bzcart.store",
-  "https://www.bzcart.store",
+  "https://bz-cart-d-ashboard.vercel.app",
+  "https://dashboardbzcart.vercel.app",
   "https://api.bzcart.store",
 ];
 
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
-  if (allowedOrigins.includes(origin)) {
-    res.header("Access-Control-Allow-Origin", origin);
-  }
-  res.header(
-    "Access-Control-Allow-Methods",
-    "GET, POST, PUT, PATCH, DELETE, OPTIONS, HEAD"
-  );
-  res.header(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization, Accept, Origin, X-Requested-With"
-  );
-  res.header("Access-Control-Allow-Credentials", "true");
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      // allow requests with no origin (curl, mobile apps)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) === -1) {
+        const msg = `CORS policy does not allow access from: ${origin}`;
+        return callback(new Error(msg), false);
+      }
+      return callback(null, true);
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+      "Accept",
+      "Origin",
+      "X-Requested-With",
+    ],
+  }),
+);
 
-  if (req.method === "OPTIONS") return res.sendStatus(204);
-  next();
-});
+// Handle preflight OPTIONS requests for all routes
+app.options("*", cors());
 
 // ------------------- Middleware -------------------
 app.use(express.json({ limit: "50mb" }));
@@ -51,7 +58,7 @@ app.use(express.urlencoded({ extended: false, limit: "50mb" }));
 
 app.use(
   "/images",
-  express.static(path.join(__dirname, "images"), { maxAge: "1d", etag: true })
+  express.static(path.join(__dirname, "images"), { maxAge: "1d", etag: true }),
 );
 
 // Multer config
@@ -92,7 +99,10 @@ const registerRoutes = (basePath, ...routeModules) => {
   try {
     app.use(basePath, ...routeModules);
   } catch (err) {
-    console.error(`Error registering ${routerName} at ${basePath}:`, err.message);
+    console.error(
+      `Error registering ${routerName} at ${basePath}:`,
+      err.message,
+    );
     throw err;
   }
 };
@@ -108,23 +118,48 @@ const campaignRoutes = safeRequire("./routes/campaignRoutes");
 
 // Register all routes
 registerRoutes("/api/users", safeRequire("./routes/userRoutes"), "userRoutes");
-registerRoutes("/api/admins", safeRequire("./routes/adminRoutes"), "adminRoutes");
+registerRoutes(
+  "/api/admins",
+  safeRequire("./routes/adminRoutes"),
+  "adminRoutes",
+);
 registerRoutes("/api/products", productRouter, "productRoutes");
-registerRoutes("/api/payment", safeRequire("./routes/paymentRoutes"), "paymentRoutes");
-registerRoutes("/api/orders", safeRequire("./routes/orderRoutes"), "orderRoutes");
+registerRoutes(
+  "/api/payment",
+  safeRequire("./routes/paymentRoutes"),
+  "paymentRoutes",
+);
+registerRoutes(
+  "/api/orders",
+  safeRequire("./routes/orderRoutes"),
+  "orderRoutes",
+);
 registerRoutes("/api/slides", upload, slideRouter, "slideRoutes");
 registerRoutes("/api/categories", categoryRouter, "categoryRoutes");
 registerRoutes("/api/brands", brandRouter, "brandRoutes");
 registerRoutes("/api/reel", reelRouter, "reelRoutes");
 registerRoutes("/api", dealRoutes, "dealRoutes");
 registerRoutes("/api/campaigns", campaignRoutes, "campaignRoutes");
-registerRoutes("/api/analytics", safeRequire("./routes/analyticsRoutes"), "analyticsRoutes");
-registerRoutes("/api/uploads", safeRequire("./routes/uploadRoutes"), "uploadRoutes");
-registerRoutes("/api/friday-banner", safeRequire("./routes/fridayBannerRoutes"), "fridayBannerRoutes");
+registerRoutes(
+  "/api/analytics",
+  safeRequire("./routes/analyticsRoutes"),
+  "analyticsRoutes",
+);
+registerRoutes(
+  "/api/uploads",
+  safeRequire("./routes/uploadRoutes"),
+  "uploadRoutes",
+);
+registerRoutes(
+  "/api/friday-banner",
+  safeRequire("./routes/fridayBannerRoutes"),
+  "fridayBannerRoutes",
+);
 
 // Multer error handling
 app.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError) return res.status(400).json({ message: err.message });
+  if (err instanceof multer.MulterError)
+    return res.status(400).json({ message: err.message });
   next(err);
 });
 
@@ -136,15 +171,23 @@ const HTTPS_PORT = 443;
 const HTTP_PORT = 80;
 
 const sslOptions = {
-  key: fs.readFileSync("/etc/letsencrypt/live/bzbackend.online-0001/privkey.pem"),
-  cert: fs.readFileSync("/etc/letsencrypt/live/bzbackend.online-0001/fullchain.pem"),
+  key: fs.readFileSync(
+    "/etc/letsencrypt/live/bzbackend.online-0001/privkey.pem",
+  ),
+  cert: fs.readFileSync(
+    "/etc/letsencrypt/live/bzbackend.online-0001/fullchain.pem",
+  ),
 };
 
 // HTTP → HTTPS redirect
-http.createServer((req, res) => {
-  res.writeHead(301, { Location: "https://" + req.headers.host + req.url });
-  res.end();
-}).listen(HTTP_PORT, () => console.log(`HTTP redirect running on port ${HTTP_PORT}`));
+http
+  .createServer((req, res) => {
+    res.writeHead(301, { Location: "https://" + req.headers.host + req.url });
+    res.end();
+  })
+  .listen(HTTP_PORT, () =>
+    console.log(`HTTP redirect running on port ${HTTP_PORT}`),
+  );
 
 // HTTPS server
 https.createServer(sslOptions, app).listen(HTTPS_PORT, () => {
