@@ -2,11 +2,33 @@ const express = require("express");
 const errorHandler = require("./middlewares/errorMiddleware");
 const connectDB = require("./config/connectDB");
 const multer = require("multer");
-const http = require("http");
+const https = require("https");
+const fs = require("fs");
+const path = require("path");
 
 const app = express();
-const server = http.createServer(app);
-const path = require("path");
+
+// Load SSL certificates for HTTPS
+let server;
+try {
+  const certPath = "/etc/letsencrypt/live/bzbackend.online-0001/fullchain.pem";
+  const keyPath = "/etc/letsencrypt/live/bzbackend.online-0001/privkey.pem";
+  
+  if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
+    const options = {
+      cert: fs.readFileSync(certPath),
+      key: fs.readFileSync(keyPath),
+    };
+    server = https.createServer(options, app);
+    console.log("HTTPS server created with Let's Encrypt certificate");
+  } else {
+    console.warn("Certificate files not found, using HTTP");
+    server = require("http").createServer(app);
+  }
+} catch (err) {
+  console.warn("Failed to load HTTPS certificates, falling back to HTTP:", err.message);
+  server = require("http").createServer(app);
+}
 
 // Safe path parsing function with comprehensive error handling
 function safeParsePath(path) {
@@ -261,7 +283,7 @@ app.use(handleMulterError);
 app.use(errorHandler);
 
 // Start server
-const PORT = process.env.PORT || 3003;
+const PORT = process.env.PORT || 443;
 
 server.listen(PORT, () => {
   console.log(`Server started successfully on port: ${PORT}`);
