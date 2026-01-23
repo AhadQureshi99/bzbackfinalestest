@@ -1,5 +1,5 @@
 const handler = require("express-async-handler");
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+const stripe = require("stripe")("sk_test_yourHardcodedSecretKeyHere");
 const productModel = require("../models/productModel");
 const orderModel = require("../models/orderModel");
 const { v4: uuidv4 } = require("uuid");
@@ -50,7 +50,7 @@ const payment = handler(async (req, res) => {
 
         if (myProduct.product_stock < item.quantity) {
           throw new Error(
-            `Product ${myProduct.product_name} has only ${myProduct.product_stock} units in stock`
+            `Product ${myProduct.product_name} has only ${myProduct.product_stock} units in stock`,
           );
         }
 
@@ -71,12 +71,12 @@ const payment = handler(async (req, res) => {
           },
           quantity: item.quantity,
         };
-      })
+      }),
     );
 
     const total_amount = myItems.reduce(
       (sum, item) => sum + (item.price_data.unit_amount / 100) * item.quantity,
-      0
+      0,
     );
 
     const order = await orderModel.create({
@@ -99,7 +99,7 @@ const payment = handler(async (req, res) => {
         await productModel.findByIdAndUpdate(item.product_id, {
           $inc: { product_stock: -item.quantity },
         });
-      })
+      }),
     );
 
     const stripeSession = await stripe.checkout.sessions.create({
